@@ -6,10 +6,21 @@
 #   so I finally decided to spit out a dead simple script to accomlpish the task.
 
 my ($domain) = @ARGV;
-my $tmp      = '/tmp/genssl1';
-my $ssl      = {};
+my $date = `date +%F`;
+chomp($date);
+my $tmp  = "/tmp/genssl1-$date";
+my $keep = '';
+my $ssl  = {};
+
+_help() unless $domain =~ /(\w+\.)+\w+/;
 
 mkdir $tmp unless -d $tmp;
+
+foreach (@ARGV) {
+    $keep = 1 if $_ =~ /--keep|-k/;
+    next;
+}
+
 system("openssl genrsa -des3 -passout pass:x -out $tmp/$domain.pass.key 2048");
 system("openssl rsa -passin pass:x -in $tmp/$domain.pass.key -out $tmp/$domain.key");
 system("openssl req -new -key $tmp/$domain.key -out $tmp/$domain.csr");
@@ -19,20 +30,25 @@ system("openssl x509 -req -days 3650 -in $tmp/$domain.csr -signkey $tmp/$domain.
 @{ $ssl->{'key'} } = _get_file_content("$tmp/$domain.key");
 @{ $ssl->{'crt'} } = _get_file_content("$tmp/$domain.crt");
 
+if ( $ssl->{'crt'} && $ssl->{'key'} ) {
 ## DISPLAY CONTENTS
-print "\nNow Displaying CRT for $domain\n\n";
-foreach ( @{ $ssl->{'crt'} } ) {
-    print $_;
+    _print( @{ $ssl->{'crt'} }, $domain );
+    _print( @{ $ssl->{'key'} }, $domain );
+    print "\n";
 }
-
-print "\nNow Displaying KEY for $domain\n\n";
-foreach ( @{ $ssl->{'key'} } ) {
-    print $_;
+else {
+    die "The $domain.csr or $domain.key files were unable to be created.";
 }
-print "\n\n";
 
 ## DESTROY
-system("rm -Rf $tmp");
+if ( !$keep ) {
+    system("rm -Rf $tmp");
+}
+else {
+    print "The following files have been preserved:\n\n";
+    print "$tmp/$domain.key\n";
+    print "$tmp/$domain.crt\n\n";
+}
 
 sub _get_file_content {
     my $file = shift;
@@ -43,5 +59,28 @@ sub _get_file_content {
             close($fh);
             return @content;
         }
+    }
+}
+
+sub _help {
+    print <<"HELP";
+Usage $0 domain.name
+
+This is a simple script that will generate a self-signed certificate and output the *\.[crt|key] files for the domain.
+
+    Example: $0 www.cpanel.net
+
+--keep|-k 
+    This option will prevent the removal of the CRT and KEY files.  By default these will be in /tmp/genssl-mmddyyyy/.
+
+HELP
+    exit;
+}
+
+sub _print {
+    my ( @content, $domain ) = @_;
+    print "\nNow Displaying CRT for $domain\n\n";
+    foreach (@content) {
+        print $_;
     }
 }
