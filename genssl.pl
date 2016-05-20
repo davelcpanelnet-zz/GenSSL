@@ -40,7 +40,6 @@ HELP
 sub _print {
     my ( $content, $domain ) = @_;
     if ( @$content && $domain ) {
-        print "\nNow Displaying CRT for $domain\n\n";
         foreach (@$content) {
             print $_;
         }
